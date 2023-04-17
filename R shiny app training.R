@@ -31,26 +31,31 @@ server <- function(input, output, session) {
       mutate(CumulativeClaims = cumsum(Amount_of_Claims_Paid)) %>% 
       select(Loss_Year, Development_Year, CumulativeClaims) %>%
       spread(key = Development_Year, value = CumulativeClaims, fill = NA)
+      
+    for (i in 2:ncol(spread_data)) {
+      factor_col <- as.character(i - 1)
+      current_col <- as.character(i)
+      next_col <- as.character(i + 1)
+      
+      if (i != ncol(spread_data)) {
+        
     
-    
-    
-    factor_2_1 <- sum(spread_data$`2`[!is.na(spread_data$`2`)] /
-                        sum(spread_data$`1`[!is.na(spread_data$`2`)]), na.rm = TRUE)
-    
-    factor_3_2 <- sum(spread_data$`3`[!is.na(spread_data$`3`)] /
-                        sum(spread_data$`2`[!is.na(spread_data$`3`)]), na.rm = TRUE)
-    
-    spread_data$`2`[is.na(spread_data$`2`)] <- spread_data$`1`[is.na(spread_data$`2`)] * factor_2_1
-    spread_data$`3`[is.na(spread_data$`3`)] <- spread_data$`2`[is.na(spread_data$`3`)] * factor_3_2
-    
-    # Add column 4
-    spread_data$`4` <- spread_data$`3` * tail_factor()
+      factor <- sum(spread_data[, current_col][!is.na(spread_data[, current_col])] /
+                      sum(spread_data[, factor_col][!is.na(spread_data[, current_col])]), na.rm = TRUE)
+
+      spread_data[which(is.na(spread_data[, current_col])), current_col] <- 
+        as.integer(unlist(spread_data[which(is.na(spread_data[, current_col])), factor_col]) * factor)
+      
+      } else {
+        spread_data[,current_col] <- spread_data[,factor_col] * tail_factor()
+      }
+    }
     
     # Format the numbers with thousands separator
-    spread_data[, 2:5] <- lapply(spread_data[, 2:5], function(x) format(round(x), big.mark = ","))
+    spread_data[, 2:ncol(spread_data)] <- lapply(spread_data[, 2:ncol(spread_data)], function(x) format(round(x), big.mark = ","))
     
     colnames(spread_data)[1] <- "Loss Year"
-    
+    print(spread_data)
     spread_data
   })
   
@@ -58,12 +63,12 @@ server <- function(input, output, session) {
     table_data() 
   })
   
-  
   # Plot the data
   output$my_plot <- renderPlot({
     
     #Redefine the data frame to 3 columns  
-    long_data <- gather(table_data(), Development_Year, CumulativeClaims, `1`:`4`)
+    last_col_name <- colnames(table_data())[ncol(table_data())]
+    long_data <- gather(table_data(), Development_Year, CumulativeClaims, `1`:`last_col_name`)
     
     long_data <- long_data %>%
       mutate(CumulativeClaims = gsub(",", "", CumulativeClaims)) %>%  # remove commas
@@ -88,8 +93,8 @@ server <- function(input, output, session) {
             panel.grid.minor = element_blank(),
             plot.title = element_text(hjust = 0.5),
             legend.position = c(0.9, 0.8)) 
-  
   })
 }
 
 shinyApp(ui, server)
+
